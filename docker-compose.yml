@@ -13,7 +13,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
 
   keycloak:
     image: quay.io/keycloak/keycloak:${KC_VERSION:-26.7}
@@ -35,12 +34,11 @@ services:
     volumes:
       - ./realms:/opt/keycloak/data/import:ro
     ports:
-      - "${KC_HTTP_PORT:-8080}:8080"
-      - "${KC_MGMT_PORT:-9000}:9000"
+      - "127.0.0.1:${KC_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${KC_MGMT_PORT:-9000}:9000"
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   pgdata:
