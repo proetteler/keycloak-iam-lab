@@ -21,6 +21,13 @@ This is a learning environment, not a production setup.
 Docker Desktop or Docker Engine with the Compose plugin. No other runtime is
 required, the Keycloak image ships its own Java runtime.
 
+Keycloak's hostname is pinned to `keycloak` (see Design decisions below), so
+that name also needs to resolve on the host machine:
+
+```bash
+echo "127.0.0.1 keycloak" | sudo tee -a /etc/hosts
+```
+
 ## Quick start
 
 ```bash
@@ -32,9 +39,10 @@ docker compose logs --tail 80 keycloak
 
 | Endpoint | URL |
 | --- | --- |
-| Admin console | http://localhost:8080 |
-| Readiness probe | http://localhost:9000/health/ready |
-| Metrics | http://localhost:9000/metrics |
+| Admin console | http://keycloak:8080 |
+| Readiness probe | http://127.0.0.1:9000/health/ready |
+| Metrics | http://127.0.0.1:9000/metrics |
+| Grafana | http://localhost:3000 |
 
 Stop with `docker compose stop`, remove the containers with
 `docker compose down`. Note that `docker compose down -v` also removes the
@@ -49,6 +57,7 @@ volume and therefore all realms, users and events.
 ├── .env                  local values including secrets, not versioned
 ├── realms/               realm exports, imported on startup
 └── docs/                 lab journal and notes
+    └── adr/               architecture decision records
 ```
 
 ## Design decisions
@@ -77,11 +86,23 @@ control.
 management port rather than alongside the application, matching how the server
 is intended to be operated behind a reverse proxy.
 
+**Fixed hostname for Keycloak.** Any connected client needs the discovery
+document, issuer and endpoint URLs Keycloak returns to resolve identically
+whether the caller is the browser or another container. `KC_HOSTNAME` pins
+that to the name `keycloak`, which is why the same name also has to resolve
+to `127.0.0.1` on the host (see Prerequisites).
+
 ## Status
 
 Stack running on Keycloak 26.7 with PostgreSQL 17 and the SCIM API preview
-feature enabled. Next steps are a dedicated realm, a confidential client using
-Authorization Code Flow with PKCE, and a role and group model.
+feature enabled. Realm `iam-lab` exists with a role and group model and a
+confidential client (`demo-app`) using Authorization Code Flow with PKCE for
+manual protocol testing. Grafana is the first connected application,
+authenticating the same way and mapping Keycloak realm roles to its own
+Admin, Editor and Viewer roles
+(see [ADR 0001](docs/adr/0001-grafana-als-erste-client-anwendung.md)).
+
+Next step is exporting the realm to `realms/` as versioned configuration.
 
 Progress notes are kept in [docs/lab-journal.md](docs/lab-journal.md).
 Architecture decisions are documented as ADRs in [docs/adr](docs/adr).

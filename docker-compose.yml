@@ -31,6 +31,13 @@ services:
       KC_DB_USERNAME: ${POSTGRES_USER:-keycloak}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_LOG_LEVEL: ${KC_LOG_LEVEL:-info}
+      # Fixed hostname so front-channel (browser) and back-channel (container-
+      # to-container, e.g. a client app fetching the discovery document) URLs
+      # match. Port 8080 here is the container's internal port, not
+      # KC_HTTP_PORT (the published host port) - they only need to be equal
+      # because both default to 8080. Requires "127.0.0.1 keycloak" in the
+      # host's /etc/hosts.
+      KC_HOSTNAME: http://keycloak:8080
     volumes:
       - ./realms:/opt/keycloak/data/import:ro
     ports:
@@ -39,6 +46,34 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-13.2}
+    container_name: kc-lab-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is missing, create .env}
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_HTTP_PORT:-3000}/
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: Keycloak
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: grafana
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ${GRAFANA_OIDC_CLIENT_SECRET:?GRAFANA_OIDC_CLIENT_SECRET is missing, create .env}
+      GF_AUTH_GENERIC_OAUTH_SCOPES: openid profile email
+      # keycloak:8080 (not localhost) on all three: Grafana's backend calls
+      # these itself, and Keycloak's KC_HOSTNAME now always answers as
+      # "keycloak" regardless of which host header the request came in on.
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: http://keycloak:8080/realms/iam-lab/protocol/openid-connect/auth
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: http://keycloak:8080/realms/iam-lab/protocol/openid-connect/token
+      GF_AUTH_GENERIC_OAUTH_API_URL: http://keycloak:8080/realms/iam-lab/protocol/openid-connect/userinfo
+      GF_AUTH_GENERIC_OAUTH_USE_PKCE: "true"
+      # No trailing default role: with ROLE_ATTRIBUTE_STRICT, a user with none
+      # of these realm roles is denied login instead of falling back to Viewer.
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: >-
+        contains(realm_access.roles[*], 'grafana-admin') && 'Admin' ||
+        contains(realm_access.roles[*], 'grafana-editor') && 'Editor' ||
+        contains(realm_access.roles[*], 'grafana-viewer') && 'Viewer'
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "true"
+    ports:
+      - "127.0.0.1:${GRAFANA_HTTP_PORT:-3000}:3000"
 
 volumes:
   pgdata:
