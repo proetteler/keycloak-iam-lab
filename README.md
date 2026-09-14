@@ -84,3 +84,4 @@ feature enabled. Next steps are a dedicated realm, a confidential client using
 Authorization Code Flow with PKCE, and a role and group model.
 
 Progress notes are kept in [docs/lab-journal.md](docs/lab-journal.md).
+Architecture decisions are documented as ADRs in [docs/adr](docs/adr).
